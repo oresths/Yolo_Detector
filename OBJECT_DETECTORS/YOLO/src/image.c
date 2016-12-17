@@ -4,21 +4,12 @@
 #include "cuda.h"
 #include <stdio.h>
 #include <math.h>
-#include <vector>
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <algorithm>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#ifdef OPENCV
-#include "opencv2/highgui/highgui_c.h"
-#include "opencv2/imgproc/imgproc_c.h"
-#endif
 
 
 int windows = 0;
@@ -188,7 +179,7 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 //BEGIN DETECTIONS FILE OUTPUT CODE SEGMENT
     //Load detection output file parameters
     std::ifstream paramsFile;
-    std::ofstream predictionsFile;
+
     std::vector<std::string> targets;
     std::string tmp_str;
     int noOfTargets = 1;
@@ -198,7 +189,7 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
     paramsFile.open("../../Settings.cfg");
     if(!paramsFile.is_open())
         std::cerr << "\nError: YOLO object detector cannot find the Settings.cfg configuration file...\n";
-    std::string predictionsFilename("objectPredictions.txt");
+
     while(paramsFile.is_open() && (!paramsFile.eof()))
     {
         if((readParamFileComplete[0] == true) && (readParamFileComplete[1] == true))
@@ -227,6 +218,8 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
     if(targets.size() == 0)
         targets.push_back("person");
 
+    std::ofstream predictionsFile;
+    std::string predictionsFilename("objectPredictions.txt");
     predictionsFile.open(predictionsFilename.c_str());
 //END DETECTIONS FILE OUTPUT CODE SEGMENT
 
@@ -298,6 +291,112 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
 //BEGIN DETECTIONS FILE OUTPUT CODE SEGMENT
     predictionsFile.close();
 //END DETECTIONS FILE OUTPUT CODE SEGMENT
+}
+
+int detect(image im, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes,
+		detection_t ** detection = NULL, char ** targets = NULL, int num_of_targets = 1)
+{
+    int i;
+//BEGIN DETECTIONS FILE OUTPUT CODE SEGMENT
+
+    std::vector<std::string> targets_s;
+
+    for (int i = 0; i < num_of_targets; ++i) {
+    	targets_s.push_back(std::string(targets[i]));
+	}
+
+    if(targets_s.size() == 0)
+        targets_s.push_back("person");
+
+//END DETECTIONS FILE OUTPUT CODE SEGMENT
+    int detect_num_total = 0;
+    int detect_num = 0;
+
+    for(i = 0; i < num; ++i)
+    {
+        int classnum = max_index(probs[i], classes);
+        float prob = probs[i][classnum];
+        if(prob > thresh)
+        {
+        	detect_num_total++;
+        }
+    }
+
+    *detection = malloc(detect_num_total * sizeof(**detection));
+
+    for(i = 0; i < num; ++i)
+    {
+        int classnum = max_index(probs[i], classes);
+        float prob = probs[i][classnum];
+        if(prob > thresh)
+        {
+
+/*            int width = im.h * .012;
+
+            if(0)
+            {
+                width = pow(prob, 1./2.)*10+1;
+                alphabet = 0;
+            }
+
+            printf("%s: %.0f%%\n", names[classnum], prob*100);
+            int offset = classnum*123457 % classes;
+            float red = get_color(2,offset,classes);
+            float green = get_color(1,offset,classes);
+            float blue = get_color(0,offset,classes);
+            float rgb[3];
+
+            //width = prob*20+2;
+
+            rgb[0] = red;
+            rgb[1] = green;
+            rgb[2] = blue;*/
+            box b = boxes[i];
+
+            int left  = (b.x-b.w/2.)*im.w;
+            int right = (b.x+b.w/2.)*im.w;
+            int top   = (b.y-b.h/2.)*im.h;
+            int bot   = (b.y+b.h/2.)*im.h;
+
+            if(left < 0) left = 0;
+            if(right > im.w-1) right = im.w-1;
+            if(top < 0) top = 0;
+            if(bot > im.h-1) bot = im.h-1;
+
+
+//BEGIN DETECTIONS FILE OUTPUT CODE SEGMENT
+            //Write current detected ROI to output file, if it corresponds to one of the desired targets
+            std::string targetclass(names[classnum]);
+            if(std::find(targets_s.begin(), targets_s.end(), targetclass.c_str()) != targets_s.end())
+            {
+            	if (strlen(targetclass.c_str()) > 31)
+            	{
+            		printf("Error: Target string shouldn't be longer than 31 chars");
+            		exit(EXIT_FAILURE);
+            	}
+            	strcpy((*detection)[detect_num].targetclass, targetclass.c_str());
+            	(*detection)[detect_num].prob = prob*100;
+            	(*detection)[detect_num].left = left;
+            	(*detection)[detect_num].top = top;
+            	(*detection)[detect_num].right = right;
+            	(*detection)[detect_num].bottom = bot;
+
+            	detect_num++;
+            }
+
+//END DETECTIONS FILE OUTPUT CODE SEGMENT
+
+
+/*            draw_box_width(im, left, top, right, bot, width, red, green, blue);
+            if(alphabet)
+            {
+                image label = get_label(alphabet, names[classnum], (im.h*.03)/10);
+                draw_label(im, top + width, left, label, rgb);
+            }*/
+        }
+    }
+
+    return detect_num;
 }
 
 void transpose_image(image im)
@@ -569,6 +668,13 @@ image load_image_cv(char *filename, int channels)
     }
     image out = ipl_to_image(src);
     cvReleaseImage(&src);
+    rgbgr_image(out);
+    return out;
+}
+
+image load_IplImage(IplImage* src)
+{
+    image out = ipl_to_image(src);
     rgbgr_image(out);
     return out;
 }

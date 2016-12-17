@@ -8,12 +8,15 @@
 #include "blas.h"
 #include "connected_layer.h"
 
+#include "darknet.h"
+
 #ifdef OPENCV
 #include "opencv2/highgui/highgui_c.h"
 #endif
 
 extern void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top);
-extern void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh);
+extern int test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh,
+		IplImage * iplim = NULL, detection_t ** detection = NULL, char ** targets = NULL, int num_of_targets = 1);
 extern void run_voxel(int argc, char **argv);
 extern void run_yolo(int argc, char **argv);
 extern void run_detector(int argc, char **argv);
@@ -348,7 +351,7 @@ void visualize(char *cfgfile, char *weightfile)
 #endif
 }
 
-int main(int argc, char **argv)
+int darknet(int argc, char **argv, IplImage * iplim, detection_t ** detection, char ** targets, int num_of_targets)
 {
     //test_resize("data/bad.jpg");
     //test_box();
@@ -383,7 +386,7 @@ int main(int argc, char **argv)
     } else if (0 == strcmp(argv[1], "detect")){
         float thresh = find_float_arg(argc, argv, "-thresh", .25);
         char *filename = (argc > 4) ? argv[4]: 0;
-        test_detector("cfg/coco.data", argv[2], argv[3], filename, thresh);
+        return test_detector("cfg/coco.data", argv[2], argv[3], filename, thresh, iplim, detection, targets, num_of_targets);
     } else if (0 == strcmp(argv[1], "cifar")){
         run_cifar(argc, argv);
     } else if (0 == strcmp(argv[1], "go")){

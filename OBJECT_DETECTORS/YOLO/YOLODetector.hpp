@@ -2,10 +2,12 @@
 #define YOLODETECTOR_H
 
 #include <string>
+#include <vector>
 #include <thread>
 #include <opencv2/core/core.hpp>
 #include <boost/filesystem.hpp>
 #include "../ObjectDetector.hpp"
+#include "src/darknet.h"
 
 class YOLODetector: public ObjectDetector
 {
@@ -20,7 +22,6 @@ public:
 protected:
     string configurationFileRelPath;
     string weightsFileRelPath;
-    string predictionsFilename;
     vector<string> targetLabels;
 };
 

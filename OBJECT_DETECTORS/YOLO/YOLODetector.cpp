@@ -2,6 +2,7 @@
 #include <fstream>
 #include <opencv2/opencv.hpp>
 #include <boost/filesystem.hpp>
+
 #include "YOLODetector.hpp"
 using namespace boost::filesystem;
 
@@ -13,7 +14,6 @@ void YOLODetector::Init(const vector<string> &arguments, const eSensor sensor)
     weightsFileRelPath = arguments[1];
     for(int i=2; i<arguments.size(); i++)
         targetLabels.push_back(arguments[i]);
-    predictionsFilename = "objectPredictions.txt";
 }
 
 void YOLODetector::Shutdown(void){}
@@ -50,31 +50,40 @@ vector<cv::Rect>* YOLODetector::DetectMonocular(const cv::Mat &im, const double 
         exit(-1);
     }
 
-    //Save current video frame to disk and feed it to DARKNET YOLO external program
-    cv::imwrite("./OBJECT_DETECTORS/YOLO/currentFrame.jpg", im);
-    string command = "./OBJECT_DETECTORS/YOLO/darknet detect " + configurationFileRelPath + ' ' + weightsFileRelPath + " ./OBJECT_DETECTORS/YOLO/currentFrame.jpg";
-    system(command.c_str());
+    IplImage iplim = im;
+
+    int argc = 4;
+
+    char *argv[argc];
+    argv[0] = "./darknet";
+    argv[1] = "detect";
+    argv[2] = configurationFileRelPath.c_str();
+    argv[3] = weightsFileRelPath.c_str();
+
+    detection_t * detection;
+
+    int num_of_targets = 1;
+    const char *targets[num_of_targets];
+    targets[0] = "person";
+    int num_of_detect = darknet(argc, argv, &iplim, &detection, targets, num_of_targets);
 
     //Read the YOLO predictions from disk and prepare return variables
     vector<cv::Rect>* detectedROIs = new vector<cv::Rect>;
-    std::ifstream predictionsFile;
-    predictionsFile.open(predictionsFilename.c_str());
     string label;
     float probability;
     int left, top, right, bottom;
-    while(predictionsFile.is_open() && (!predictionsFile.eof()))
-    {
-        predictionsFile >> label;
-        labels.push_back(label);
-        predictionsFile >> probability;
-        probs.push_back(probability);
-        predictionsFile >> left >> top >> right >> bottom;
-        cv::Point tl(left, top);
-        cv::Point br(right, bottom);
+
+    for (int i = 0; i < num_of_detect; ++i) {
+        labels.push_back(std::string(detection[i].targetclass));
+//        wcout << detection[i].targetclass << std::endl;
+        probs.push_back(detection[i].prob);
+        cv::Point tl(detection[i].left, detection[i].top);
+        cv::Point br(detection[i].right, detection[i].bottom);
         cv::Rect ROI(tl, br);
         detectedROIs->push_back(ROI);
-    }
-    predictionsFile.close();
+	}
+
+    free(detection);
 
     return detectedROIs;
 }

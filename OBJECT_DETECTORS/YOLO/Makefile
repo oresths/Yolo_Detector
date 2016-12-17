@@ -1,12 +1,12 @@
 GPU=0
 CUDNN=0
-OPENCV=0
-DEBUG=0
+OPENCV=1
+DEBUG=1
 
 ARCH= --gpu-architecture=compute_52 --gpu-code=compute_52
 
 VPATH=./src/
-EXEC=darknet
+EXEC=main_test
 OBJDIR=./obj/
 
 CC=g++
@@ -14,7 +14,7 @@ NVCC=nvcc
 OPTS=-Ofast
 LDFLAGS= -lm -pthread 
 COMMON= 
-CFLAGS=-Wall -fpermissive -Wfatal-errors 
+CFLAGS=-Wall -fpermissive -Wfatal-errors -std=c++11
 
 ifeq ($(DEBUG), 1) 
 OPTS=-O0 -g
@@ -26,7 +26,7 @@ ifeq ($(OPENCV), 1)
 COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
 LDFLAGS+= `pkg-config --libs opencv` 
-COMMON+= `pkg-config --cflags opencv` 
+COMMON+= `pkg-config --cflags opencv` -L/usr/local/share/OpenCV/3rdparty/lib
 endif
 
 ifeq ($(GPU), 1) 
@@ -50,13 +50,19 @@ endif
 OBJS = $(addprefix $(OBJDIR), $(OBJ))
 DEPS = $(wildcard src/*.h) Makefile
 
-all: obj backup results $(EXEC)
+all: obj backup results delete_main yolo_interface test $(EXEC)
 
 $(EXEC): $(OBJS)
-	$(CC) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(COMMON) $(CFLAGS) -std=c++11 `pkg-config --cflags opencv` $^ $(OBJDIR)YOLODetector.o $(OBJDIR)main_test.o -o $@ $(LDFLAGS) -L/usr/local/lib -lopencv_videoio -lopencv_core -lboost_system -lboost_filesystem -lopencv_imgcodecs
 
 $(OBJDIR)%.o: %.c $(DEPS)
 	$(CC) $(COMMON) $(CFLAGS) -c $< -o $@
+
+yolo_interface:
+	$(CC) $(COMMON) $(CFLAGS) -c YOLODetector.cpp -o $(OBJDIR)YOLODetector.o
+
+test:
+	$(CC) $(COMMON) $(CFLAGS) -c main_test.cpp -o $(OBJDIR)main_test.o
 
 $(OBJDIR)%.o: %.cu $(DEPS)
 	$(NVCC) $(ARCH) $(COMMON) --compiler-options "$(CFLAGS)" -c $< -o $@
@@ -67,6 +73,10 @@ backup:
 	mkdir -p backup
 results:
 	mkdir -p results
+
+#To register changes to YOLODetector.cpp
+delete_main:
+	rm -f $(EXEC)
 
 .PHONY: clean
 

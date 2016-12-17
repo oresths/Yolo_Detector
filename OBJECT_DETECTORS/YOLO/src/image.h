@@ -6,7 +6,19 @@
 #include <float.h>
 #include <string.h>
 #include <math.h>
+#include <vector>
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <algorithm>
 #include "box.h"
+
+#include "darknet.h"
+
+#ifdef OPENCV
+#include "opencv2/highgui/highgui_c.h"
+#include "opencv2/imgproc/imgproc_c.h"
+#endif
 
 typedef struct
 {
@@ -15,6 +27,7 @@ typedef struct
     int c;
     float *data;
 } image;
+
 
 float get_color(int c, int x, int max);
 void flip_image(image a);
@@ -73,6 +86,12 @@ image copy_image(image p);
 image load_image(char *filename, int w, int h, int c);
 image load_image_color(char *filename, int w, int h);
 image **load_alphabet();
+
+#ifdef OPENCV
+image load_IplImage(IplImage* src);
+#endif
+int detect(image im, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes,
+		detection_t ** detection = NULL, char ** targets = NULL, int num_of_targets = 1);
 
 float get_pixel(image m, int x, int y, int c);
 float get_pixel_extend(image m, int x, int y, int c);

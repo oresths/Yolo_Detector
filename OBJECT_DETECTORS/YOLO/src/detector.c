@@ -433,7 +433,8 @@ void validate_detector_recall(char *cfgfile, char *weightfile)
     }
 }
 
-void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh)
+int test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh,	IplImage * iplim = NULL,
+		detection_t ** detection = NULL, char ** targets = NULL, int num_of_targets = 1)
 {
     list *options = read_data_cfg(datacfg);
     char *name_list = option_find_str(options, "names", "data/names.list");
@@ -451,17 +452,27 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     char *input = buff;
     int j;
     float nms=.4;
+    uint8_t is_lib = 0;
+    int num_of_detect;
     while(1){
-        if(filename){
-            strncpy(input, filename, 256);
-        } else {
-            printf("Enter Image Path: ");
-            fflush(stdout);
-            input = fgets(input, 256, stdin);
-            if(!input) return;
-            strtok(input, "\n");
-        }
-        image im = load_image_color(input,0,0);
+    	image im;
+    	if (iplim == NULL) {
+			if(filename){
+				strncpy(input, filename, 256);
+			} else {
+				printf("Enter Image Path: ");
+				fflush(stdout);
+				input = fgets(input, 256, stdin);
+				if(!input) return 0;
+				strtok(input, "\n");
+			}
+			im = load_image_color(input,0,0);
+    	}
+    	else {
+    		im = load_IplImage(iplim);
+    		is_lib = 1;
+    	}
+
         image sized = resize_image(im, net.w, net.h);
         layer l = net.layers[net.n-1];
 
@@ -472,23 +483,35 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         float *X = sized.data;
         time=clock();
         network_predict(net, X);
-        printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+        if (!is_lib) {
+        	printf("Predicted in %f seconds.\n", sec(clock()-time));
+        }
         get_region_boxes(l, 1, 1, thresh, probs, boxes, 0);
         if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, l.classes, nms);
-        draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes);
-        save_image(im, "predictions");
-        show_image(im, "predictions");
+        num_of_detect = detect(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes, detection, targets,
+        		num_of_targets);
+        if (!is_lib) {
+			save_image(im, "predictions");
+			show_image(im, "predictions");
+        }
 
         free_image(im);
         free_image(sized);
         free(boxes);
         free_ptrs((void **)probs, l.w*l.h*l.n);
 #ifdef OPENCV
-        cvWaitKey(0);
-        cvDestroyAllWindows();
+        if (!is_lib) {
+			cvWaitKey(0);
+			cvDestroyAllWindows();
+        }
 #endif
-        if (filename) break;
+        if (!is_lib) {
+        	if (filename) break;
+        } else
+        	break;
     }
+
+    return num_of_detect;
 }
 
 void run_detector(int argc, char **argv)
